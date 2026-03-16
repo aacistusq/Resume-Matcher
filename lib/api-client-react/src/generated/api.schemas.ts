@@ -28,13 +28,39 @@ export interface AnalyzeResumeBody {
   jobDescription: string;
 }
 
+export interface ScoreBreakdown {
+  mustHaveScore: number;
+  preferredScore: number;
+  experienceScore: number;
+  evidenceScore: number;
+  resumeQualityScore: number;
+  penaltiesApplied: number;
+  scoreCapApplied?: number | null;
+  rawScoreBeforePenalties: number;
+  finalScore: number;
+  matchedCount: number;
+  partialCount: number;
+  missingCount: number;
+  missingCriticalCount: number;
+}
+
 export interface AnalysisResult {
-  /** Match percentage 0-100 */
-  matchScore: number;
+  /** Deterministic fit score 0-100 */
+  fitScore: number;
+  /** AI resume quality score 0-10 */
+  resumeQualityScore: number;
+  /** Strong Fit | Decent Fit | Partial Fit | Weak Fit | Poor Fit */
+  scoreBand: string;
+  scoreBreakdown: ScoreBreakdown;
   matchedSkills: string[];
+  partialSkills: string[];
   missingSkills: string[];
+  topGaps: string[];
+  whyNotHigher: string[];
   suggestions: string[];
   summary: string;
+  scoreRationale: string;
+  confidenceLevel: string;
   analysisId: number;
 }
 
@@ -42,10 +68,18 @@ export interface AnalysisRecord {
   id: number;
   resumeId: number;
   jobDescription: string;
-  matchScore: number;
+  fitScore: number;
+  resumeQualityScore: number;
+  scoreBand: string;
+  scoreBreakdown?: ScoreBreakdown;
   matchedSkills: string[];
+  partialSkills: string[];
   missingSkills: string[];
+  topGaps: string[];
+  whyNotHigher: string[];
   suggestions: string[];
   summary: string;
+  scoreRationale: string;
+  confidenceLevel: string;
   createdAt: string;
 }

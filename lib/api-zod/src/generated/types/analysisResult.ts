@@ -5,13 +5,24 @@
  * Resume Analyzer API
  * OpenAPI spec version: 0.1.0
  */
+import type { ScoreBreakdown } from "./scoreBreakdown";
 
 export interface AnalysisResult {
-  /** Match percentage 0-100 */
-  matchScore: number;
+  /** Deterministic fit score 0-100 */
+  fitScore: number;
+  /** AI resume quality score 0-10 */
+  resumeQualityScore: number;
+  /** Strong Fit | Decent Fit | Partial Fit | Weak Fit | Poor Fit */
+  scoreBand: string;
+  scoreBreakdown: ScoreBreakdown;
   matchedSkills: string[];
+  partialSkills: string[];
   missingSkills: string[];
+  topGaps: string[];
+  whyNotHigher: string[];
   suggestions: string[];
   summary: string;
+  scoreRationale: string;
+  confidenceLevel: string;
   analysisId: number;
 }

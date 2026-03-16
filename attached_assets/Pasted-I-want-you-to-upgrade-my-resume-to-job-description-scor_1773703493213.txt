@@ -1,0 +1,477 @@
+I want you to upgrade my resume-to-job-description scoring system so it stops giving overly generous scores in the 70s for weak or partial matches.
+
+Current problem:
+The app is too lenient. Even when the resume differs meaningfully from the job description, it still returns scores in the 70s. I want a much stricter, evidence-based, ATS-style scoring engine.
+
+My goals:
+1. Make the scoring stricter and more believable
+2. Prevent weak matches from scoring too high
+3. Show users exactly why they got the score
+4. Separate actual job fit from resume writing quality
+5. Require evidence from the resume before giving credit
+
+Please update the app architecture, prompt logic, scoring formula, API response shape, and UI display to support this.
+
+==================================================
+PART 1 — NEW SCORING PHILOSOPHY
+==================================================
+
+Do NOT let the LLM directly invent one final score from overall vibes.
+
+Instead use a 2-step process:
+
+Step 1:
+The AI should analyze the JD and resume and return structured findings only.
+
+Step 2:
+The backend should calculate the actual score deterministically from those findings using fixed weights, penalties, and caps.
+
+The score must be conservative.
+If a resume is only loosely related, it should usually fall in the 40–65 range, not the 70s.
+
+Target score interpretation:
+- 85–100 = strong fit
+- 70–84 = decent fit
+- 50–69 = partial fit
+- 30–49 = weak fit
+- 0–29 = poor fit
+
+Only give 80+ if there is strong evidence across most core requirements.
+
+==================================================
+PART 2 — ANALYSIS MODEL THE AI MUST RETURN
+==================================================
+
+The AI must extract the job description into these categories:
+
+- must_have_skills
+- preferred_skills
+- required_experience
+- domain_requirements
+- seniority_level
+- key_responsibilities
+- qualifications_or_certifications
+- tools_and_technologies
+
+Then the AI must compare the resume against each requirement and classify every item as:
+
+- matched
+- partial
+- missing
+
+Rules:
+- matched = direct and clear evidence in resume
+- partial = some relevant evidence but not strong/complete
+- missing = no explicit evidence
+- do not assume skills or tools unless clearly shown
+- broad similarity is not enough for a full match
+- transferable skills can count as partial, not matched
+- each matched or partial item must include exact resume evidence text
+
+==================================================
+PART 3 — REQUIRED JSON RESPONSE FROM AI
+==================================================
+
+Update the AI analysis response to return JSON in exactly this shape:
+
+{
+  "job_analysis": {
+    "must_have_skills": [],
+    "preferred_skills": [],
+    "required_experience": [],
+    "domain_requirements": [],
+    "seniority_level": "",
+    "key_responsibilities": [],
+    "qualifications_or_certifications": [],
+    "tools_and_technologies": []
+  },
+  "requirement_analysis": {
+    "must_have": [
+      {
+        "requirement": "",
+        "status": "matched",
+        "evidence": "",
+        "reasoning": "",
+        "critical": true,
+        "weight": 0
+      }
+    ],
+    "preferred": [
+      {
+        "requirement": "",
+        "status": "partial",
+        "evidence": "",
+        "reasoning": "",
+        "weight": 0
+      }
+    ],
+    "experience": [
+      {
+        "requirement": "",
+        "status": "matched",
+        "evidence": "",
+        "reasoning": "",
+        "weight": 0
+      }
+    ],
+    "domain": [
+      {
+        "requirement": "",
+        "status": "missing",
+        "evidence": "",
+        "reasoning": "",
+        "weight": 0
+      }
+    ],
+    "responsibilities": [
+      {
+        "requirement": "",
+        "status": "partial",
+        "evidence": "",
+        "reasoning": "",
+        "weight": 0
+      }
+    ]
+  },
+  "subscores": {
+    "experience_relevance_score": 0,
+    "evidence_strength_score": 0,
+    "resume_quality_score": 0
+  },
+  "penalty_flags": {
+    "missing_critical_must_haves": 0,
+    "major_seniority_mismatch": false,
+    "missing_core_domain": false,
+    "no_quantified_achievements": false,
+    "generic_resume_language": false,
+    "largely_unrelated_background": false
+  },
+  "fit_summary": {
+    "strong_matches": [],
+    "partial_matches": [],
+    "missing_core_requirements": [],
+    "top_gaps": [],
+    "top_improvements": [],
+    "score_rationale": ""
+  }
+}
+
+Important:
+The AI should NOT return the final numeric score.
+The backend will calculate that.
+
+==================================================
+PART 4 — STRICT AI SYSTEM PROMPT
+==================================================
+
+Replace the current analysis prompt with this stricter prompt:
+
+You are a strict ATS resume scoring analyst.
+
+Your task is to compare a candidate's resume against a job description and return structured evidence-based analysis.
+
+Be conservative and skeptical.
+Do not reward general similarity unless there is direct evidence in the resume.
+Do not infer tools, technologies, or responsibilities unless explicitly mentioned or strongly evidenced.
+If a requirement is only somewhat reflected, classify it as partial, not matched.
+If there is no clear evidence, classify it as missing.
+
+Scoring intent:
+- Weak or loosely related resumes should often land in the 30–55 range after backend scoring
+- Partial but somewhat relevant resumes should often land in the 50–69 range
+- Strong resumes with clear evidence across most must-haves can land in the 70–84 range
+- Only exceptional, highly aligned resumes should land in the 85+ range
+
+Important rules:
+1. For every matched or partial requirement, provide exact evidence from the resume
+2. If there is no direct evidence, do not mark as matched
+3. Broad business analytics experience does not automatically equal domain expertise
+4. Broad data experience does not automatically mean Python, dbt, Snowflake, experimentation, or stakeholder leadership
+5. Missing critical requirements should be clearly reflected in the analysis
+6. Be strict about seniority mismatch
+7. Be strict about lack of quantified achievements
+8. Be strict about vague or generic resume bullets
+9. Do not produce a final score
+10. Return valid JSON only in the required schema
+
+==================================================
+PART 5 — BACKEND DETERMINISTIC SCORING FORMULA
+==================================================
+
+Implement the final score in backend code, not by the LLM.
+
+Use this exact model:
+
+A. Must-have requirements = 40 points
+B. Preferred requirements = 15 points
+C. Experience relevance = 20 points
+D. Evidence strength = 15 points
+E. Resume quality / ATS clarity = 10 points
+
+Status values:
+- matched = 1.0
+- partial = 0.5
+- missing = 0.0
+
+Section scoring:
+- must-have section score = weighted coverage scaled to 40
+- preferred section score = weighted coverage scaled to 15
+
+For experience_relevance_score:
+Allow AI to return a number from 0 to 20
+
+For evidence_strength_score:
+Allow AI to return a number from 0 to 15 based on:
+- quantified achievements
+- specificity of accomplishments
+- strength of ownership language
+- proof of tools and technologies
+- measurable business outcomes
+
+For resume_quality_score:
+Allow AI to return a number from 0 to 10 based on:
+- clarity
+- structure
+- ATS readability
+- good formatting
+- lack of fluff
+- concise bullet quality
+
+==================================================
+PART 6 — PENALTIES
+==================================================
+
+After calculating the raw weighted score, subtract penalties using this logic:
+
+- for each missing critical must-have: subtract 8 points
+- if there is a major seniority mismatch: subtract 10 points
+- if core domain relevance is required and missing: subtract 8 points
+- if there are no quantified achievements: subtract 5 points
+- if the resume uses generic/vague language heavily: subtract 5 points
+- if the background is largely unrelated: subtract 12 points
+
+Make sure penalties cannot reduce final score below 0.
+
+==================================================
+PART 7 — SCORE CAPS
+==================================================
+
+After penalties, apply hard score caps:
+
+- if 2 or more critical must-haves are missing, final score cannot exceed 65
+- if major seniority mismatch is true, final score cannot exceed 55
+- if largely_unrelated_background is true, final score cannot exceed 45
+
+Apply the lowest applicable cap.
+
+==================================================
+PART 8 — FIT SCORE + RESUME QUALITY SCORE
+==================================================
+
+I want the UI to show 2 scores:
+
+1. Fit Score
+This is the final backend-calculated score using the above formula, penalties, and caps.
+
+2. Resume Quality Score
+This should come from the AI subscore out of 10, converted to 100 for UI if needed.
+For example:
+- backend stores resume_quality_score = 7.5 out of 10
+- UI can display 75/100 if desired
+
+This helps users understand whether:
+- they are not a strong fit
+- or they are a decent fit but their resume is weak
+
+==================================================
+PART 9 — BACKEND HELPER FUNCTION TO IMPLEMENT
+==================================================
+
+Create a scoring helper function with logic equivalent to this:
+
+1. Read structured AI output
+2. Compute must-have weighted coverage
+3. Compute preferred weighted coverage
+4. Add experience relevance score
+5. Add evidence strength score
+6. Add resume quality score
+7. Subtract penalties
+8. Apply score caps
+9. Round to nearest whole number
+10. Return final score and detailed breakdown
+
+The breakdown returned by backend should include:
+- fitScore
+- mustHaveScore
+- preferredScore
+- experienceScore
+- evidenceScore
+- resumeQualityScore
+- penaltiesApplied
+- scoreCapApplied
+- rawScoreBeforePenalties
+- finalScore
+- matchedCount
+- partialCount
+- missingCount
+- missingCriticalCount
+
+==================================================
+PART 10 — SCORING LOGIC EXAMPLE
+==================================================
+
+Use logic like this for sections:
+
+For must-have section:
+- sum(statusValue × itemWeight)
+- divide by total must-have weights
+- multiply by 40
+
+For preferred section:
+- sum(statusValue × itemWeight)
+- divide by total preferred weights
+- multiply by 15
+
+Status mapping:
+- matched => 1
+- partial => 0.5
+- missing => 0
+
+==================================================
+PART 11 — DEFAULT WEIGHT RULES FOR REQUIREMENTS
+==================================================
+
+If the AI does not assign explicit weights, use defaults:
+
+Must-have:
+- critical must-have = 3
+- normal must-have = 2
+
+Preferred:
+- normal preferred = 1
+
+Experience:
+- important experience requirement = 2
+
+Domain:
+- domain requirement = 2
+
+Responsibilities:
+- responsibility requirement = 1
+
+But if the AI can assign sensible weights, allow them.
+
+==================================================
+PART 12 — FRONTEND / UI CHANGES
+==================================================
+
+Update the analysis result UI so that it no longer shows just one simple percentage card.
+
+For each completed analysis, show:
+
+- Fit Score
+- Resume Quality Score
+- Score band label:
+  - Strong Fit
+  - Decent Fit
+  - Partial Fit
+  - Weak Fit
+  - Poor Fit
+
+- A breakdown panel with:
+  - Must-have match score
+  - Preferred match score
+  - Experience relevance score
+  - Evidence strength score
+  - Resume quality score
+  - Penalties applied
+  - Score cap applied if any
+
+- Matched core requirements
+- Partial requirements
+- Missing core requirements
+- Top gaps
+- Top improvements
+- Score rationale
+
+Also add a short “Why this score is not higher” section that lists the main reasons, such as:
+- 2 critical requirements missing
+- no evidence of Python
+- no quantified achievements
+- seniority mismatch
+- weak domain match
+
+This needs to make the score feel more transparent and trustworthy.
+
+==================================================
+PART 13 — HISTORY CARD IMPROVEMENTS
+==================================================
+
+On the analysis history cards, instead of just showing a number like 78%, also show:
+- score band label
+- maybe small text like:
+  - Missing 2 core requirements
+  - Strong SQL fit, weak Python evidence
+
+This will make history cards more useful.
+
+==================================================
+PART 14 — OPTIONAL SAFETY RULES
+==================================================
+
+Add safeguards:
+- if resume text extraction fails or is too short, do not score normally
+- show an error or low-confidence warning
+- if job description is too short or vague, show low-confidence warning
+- if AI output is missing key sections, fallback gracefully
+
+Also store:
+- confidence level
+- parsing warnings
+- scoring warnings
+
+==================================================
+PART 15 — IMPLEMENTATION DETAILS
+==================================================
+
+Please make all required code changes in the existing app:
+- update prompt construction
+- update API route / backend handler
+- update types/interfaces
+- update analysis data model
+- add deterministic scoring helper
+- update UI components
+- update analysis history summary cards
+- preserve current styling as much as possible
+
+If there is existing logic that directly uses LLM final score output, remove or replace it.
+
+==================================================
+PART 16 — TEST CASES TO VALIDATE
+==================================================
+
+After implementing, test using examples like:
+1. Strongly matching data analyst resume vs senior data analyst JD
+   Expected score roughly 75–88
+
+2. Partial match data analyst resume missing Python and domain experience
+   Expected score roughly 50–68
+
+3. Weakly related resume with general transferable skills only
+   Expected score roughly 30–49
+
+4. Largely unrelated resume
+   Expected score roughly 0–29 or capped below 45
+
+Make sure the results spread more realistically and do not cluster in the 70s.
+
+==================================================
+PART 17 — FINAL OUTPUT I WANT FROM YOU
+==================================================
+
+Please do all of the following:
+1. Update the code
+2. Show me the main files changed
+3. Explain the new scoring flow
+4. Point out where I can tune weights later
+5. If needed, add comments in the code for where to adjust penalties and caps

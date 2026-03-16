@@ -19,7 +19,6 @@ paths:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -190,17 +189,81 @@ components:
         - resumeId
         - jobDescription
 
+    ScoreBreakdown:
+      type: object
+      properties:
+        mustHaveScore:
+          type: number
+        preferredScore:
+          type: number
+        experienceScore:
+          type: number
+        evidenceScore:
+          type: number
+        resumeQualityScore:
+          type: number
+        penaltiesApplied:
+          type: number
+        scoreCapApplied:
+          type: number
+          nullable: true
+        rawScoreBeforePenalties:
+          type: number
+        finalScore:
+          type: number
+        matchedCount:
+          type: integer
+        partialCount:
+          type: integer
+        missingCount:
+          type: integer
+        missingCriticalCount:
+          type: integer
+      required:
+        - mustHaveScore
+        - preferredScore
+        - experienceScore
+        - evidenceScore
+        - resumeQualityScore
+        - penaltiesApplied
+        - rawScoreBeforePenalties
+        - finalScore
+        - matchedCount
+        - partialCount
+        - missingCount
+        - missingCriticalCount
+
     AnalysisResult:
       type: object
       properties:
-        matchScore:
+        fitScore:
           type: number
-          description: Match percentage 0-100
+          description: Deterministic fit score 0-100
+        resumeQualityScore:
+          type: number
+          description: AI resume quality score 0-10
+        scoreBand:
+          type: string
+          description: "Strong Fit | Decent Fit | Partial Fit | Weak Fit | Poor Fit"
+        scoreBreakdown:
+          $ref: "#/components/schemas/ScoreBreakdown"
         matchedSkills:
           type: array
           items:
             type: string
+        partialSkills:
+          type: array
+          items:
+            type: string
         missingSkills:
+          type: array
+          items:
+            type: string
+        topGaps:
+          type: array
+          items:
+            type: string
+        whyNotHigher:
           type: array
           items:
             type: string
@@ -210,14 +273,26 @@ components:
             type: string
         summary:
           type: string
+        scoreRationale:
+          type: string
+        confidenceLevel:
+          type: string
         analysisId:
           type: integer
       required:
-        - matchScore
+        - fitScore
+        - resumeQualityScore
+        - scoreBand
+        - scoreBreakdown
         - matchedSkills
+        - partialSkills
         - missingSkills
+        - topGaps
+        - whyNotHigher
         - suggestions
         - summary
+        - scoreRationale
+        - confidenceLevel
         - analysisId
 
     AnalysisRecord:
@@ -229,13 +304,31 @@ components:
           type: integer
         jobDescription:
           type: string
-        matchScore:
+        fitScore:
           type: number
+        resumeQualityScore:
+          type: number
+        scoreBand:
+          type: string
+        scoreBreakdown:
+          $ref: "#/components/schemas/ScoreBreakdown"
         matchedSkills:
           type: array
           items:
             type: string
+        partialSkills:
+          type: array
+          items:
+            type: string
         missingSkills:
+          type: array
+          items:
+            type: string
+        topGaps:
+          type: array
+          items:
+            type: string
+        whyNotHigher:
           type: array
           items:
             type: string
@@ -245,6 +338,10 @@ components:
             type: string
         summary:
           type: string
+        scoreRationale:
+          type: string
+        confidenceLevel:
+          type: string
         createdAt:
           type: string
           format: date-time
@@ -252,9 +349,16 @@ components:
         - id
         - resumeId
         - jobDescription
-        - matchScore
+        - fitScore
+        - resumeQualityScore
+        - scoreBand
         - matchedSkills
+        - partialSkills
         - missingSkills
+        - topGaps
+        - whyNotHigher
         - suggestions
         - summary
+        - scoreRationale
+        - confidenceLevel
         - createdAt

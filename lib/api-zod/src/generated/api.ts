@@ -8,7 +8,6 @@
 import * as zod from "zod";
 
 /**
- * Returns server health status
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({
@@ -67,11 +66,35 @@ export const AnalyzeResumeBody = zod.object({
 });
 
 export const AnalyzeResumeResponse = zod.object({
-  matchScore: zod.number().describe("Match percentage 0-100"),
+  fitScore: zod.number().describe("Deterministic fit score 0-100"),
+  resumeQualityScore: zod.number().describe("AI resume quality score 0-10"),
+  scoreBand: zod
+    .string()
+    .describe("Strong Fit | Decent Fit | Partial Fit | Weak Fit | Poor Fit"),
+  scoreBreakdown: zod.object({
+    mustHaveScore: zod.number(),
+    preferredScore: zod.number(),
+    experienceScore: zod.number(),
+    evidenceScore: zod.number(),
+    resumeQualityScore: zod.number(),
+    penaltiesApplied: zod.number(),
+    scoreCapApplied: zod.number().nullish(),
+    rawScoreBeforePenalties: zod.number(),
+    finalScore: zod.number(),
+    matchedCount: zod.number(),
+    partialCount: zod.number(),
+    missingCount: zod.number(),
+    missingCriticalCount: zod.number(),
+  }),
   matchedSkills: zod.array(zod.string()),
+  partialSkills: zod.array(zod.string()),
   missingSkills: zod.array(zod.string()),
+  topGaps: zod.array(zod.string()),
+  whyNotHigher: zod.array(zod.string()),
   suggestions: zod.array(zod.string()),
   summary: zod.string(),
+  scoreRationale: zod.string(),
+  confidenceLevel: zod.string(),
   analysisId: zod.number(),
 });
 
@@ -86,11 +109,35 @@ export const GetAnalysisHistoryResponseItem = zod.object({
   id: zod.number(),
   resumeId: zod.number(),
   jobDescription: zod.string(),
-  matchScore: zod.number(),
+  fitScore: zod.number(),
+  resumeQualityScore: zod.number(),
+  scoreBand: zod.string(),
+  scoreBreakdown: zod
+    .object({
+      mustHaveScore: zod.number(),
+      preferredScore: zod.number(),
+      experienceScore: zod.number(),
+      evidenceScore: zod.number(),
+      resumeQualityScore: zod.number(),
+      penaltiesApplied: zod.number(),
+      scoreCapApplied: zod.number().nullish(),
+      rawScoreBeforePenalties: zod.number(),
+      finalScore: zod.number(),
+      matchedCount: zod.number(),
+      partialCount: zod.number(),
+      missingCount: zod.number(),
+      missingCriticalCount: zod.number(),
+    })
+    .optional(),
   matchedSkills: zod.array(zod.string()),
+  partialSkills: zod.array(zod.string()),
   missingSkills: zod.array(zod.string()),
+  topGaps: zod.array(zod.string()),
+  whyNotHigher: zod.array(zod.string()),
   suggestions: zod.array(zod.string()),
   summary: zod.string(),
+  scoreRationale: zod.string(),
+  confidenceLevel: zod.string(),
   createdAt: zod.date(),
 });
 export const GetAnalysisHistoryResponse = zod.array(

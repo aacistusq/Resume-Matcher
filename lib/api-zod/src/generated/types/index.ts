@@ -12,3 +12,4 @@ export * from "./analyzeResumeBody";
 export * from "./createResumeBody";
 export * from "./healthStatus";
 export * from "./resume";
+export * from "./scoreBreakdown";

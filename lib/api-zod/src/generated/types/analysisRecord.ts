@@ -5,15 +5,24 @@
  * Resume Analyzer API
  * OpenAPI spec version: 0.1.0
  */
+import type { ScoreBreakdown } from "./scoreBreakdown";
 
 export interface AnalysisRecord {
   id: number;
   resumeId: number;
   jobDescription: string;
-  matchScore: number;
+  fitScore: number;
+  resumeQualityScore: number;
+  scoreBand: string;
+  scoreBreakdown?: ScoreBreakdown;
   matchedSkills: string[];
+  partialSkills: string[];
   missingSkills: string[];
+  topGaps: string[];
+  whyNotHigher: string[];
   suggestions: string[];
   summary: string;
+  scoreRationale: string;
+  confidenceLevel: string;
   createdAt: Date;
 }
