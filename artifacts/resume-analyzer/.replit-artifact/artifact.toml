@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Resume Analyzer"
+version = "1.0.0"
+id = "artifacts/resume-analyzer"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+localPort = 18646
+name = "web"
+paths = ["/"]
+
+[services.development]
+run = "pnpm --filter @workspace/resume-analyzer run dev"
+
+[services.env]
+PORT = "18646"
+BASE_PATH = "/"
+
+[services.production]
+build = ["pnpm", "--filter", "@workspace/resume-analyzer", "run", "build"]
+publicDir = "artifacts/resume-analyzer/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"

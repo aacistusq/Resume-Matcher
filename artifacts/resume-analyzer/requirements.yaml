@@ -1,0 +1,18 @@
+packages:
+  "framer-motion": "For fluid UI animations, page transitions, and staggered list reveals"
+  "pdfjs-dist": "For robust client-side PDF text extraction"
+  "date-fns": "For elegant date formatting in the history view"
+  "clsx": "For conditional class merging"
+  "tailwind-merge": "For resolving tailwind class conflicts"
+
+images:
+  - path: "artifacts/resume-analyzer/public/images/hero-bg.png"
+    description: "Abstract gradient background with subtle flowing waves in indigo, deep purple, and soft blue, highly professional, clean, modern, and trustworthy"
+    aspect_ratio: "16:9"
+  - path: "artifacts/resume-analyzer/public/images/empty-state.png"
+    description: "A minimalist 3D illustration of a glowing document or clipboard floating in mid-air with soft blue lighting, perfect for an empty state in a professional app"
+    aspect_ratio: "1:1"
+
+notes:
+  - "The app relies on @workspace/api-client-react for TanStack Query hooks generated from the OpenAPI spec."
+  - "PDF extraction happens entirely client-side using pdfjs-dist loaded via CDN worker to avoid build complexity."

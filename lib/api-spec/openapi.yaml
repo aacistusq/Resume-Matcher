@@ -1,15 +1,18 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Resume Analyzer API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: resumes
+    description: Resume operations
+  - name: analysis
+    description: Resume analysis operations
 paths:
   /healthz:
     get:
@@ -24,6 +27,113 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /resumes:
+    get:
+      operationId: listResumes
+      tags: [resumes]
+      summary: List all resumes
+      responses:
+        "200":
+          description: List of resumes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Resume"
+    post:
+      operationId: createResume
+      tags: [resumes]
+      summary: Upload a resume
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateResumeBody"
+      responses:
+        "201":
+          description: Resume created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resume"
+
+  /resumes/{id}:
+    get:
+      operationId: getResume
+      tags: [resumes]
+      summary: Get a resume by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Resume found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resume"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteResume
+      tags: [resumes]
+      summary: Delete a resume
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /analysis:
+    post:
+      operationId: analyzeResume
+      tags: [analysis]
+      summary: Analyze resume against a job description
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalyzeResumeBody"
+      responses:
+        "200":
+          description: Analysis result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalysisResult"
+
+  /analysis/history/{resumeId}:
+    get:
+      operationId: getAnalysisHistory
+      tags: [analysis]
+      summary: Get analysis history for a resume
+      parameters:
+        - name: resumeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Analysis history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AnalysisRecord"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +144,117 @@ components:
       required:
         - status
 
+    Resume:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        content:
+          type: string
+        fileName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - content
+        - fileName
+        - createdAt
+
+    CreateResumeBody:
+      type: object
+      properties:
+        name:
+          type: string
+        content:
+          type: string
+        fileName:
+          type: string
+      required:
+        - name
+        - content
+        - fileName
+
+    AnalyzeResumeBody:
+      type: object
+      properties:
+        resumeId:
+          type: integer
+        jobDescription:
+          type: string
+      required:
+        - resumeId
+        - jobDescription
+
+    AnalysisResult:
+      type: object
+      properties:
+        matchScore:
+          type: number
+          description: Match percentage 0-100
+        matchedSkills:
+          type: array
+          items:
+            type: string
+        missingSkills:
+          type: array
+          items:
+            type: string
+        suggestions:
+          type: array
+          items:
+            type: string
+        summary:
+          type: string
+        analysisId:
+          type: integer
+      required:
+        - matchScore
+        - matchedSkills
+        - missingSkills
+        - suggestions
+        - summary
+        - analysisId
+
+    AnalysisRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+        resumeId:
+          type: integer
+        jobDescription:
+          type: string
+        matchScore:
+          type: number
+        matchedSkills:
+          type: array
+          items:
+            type: string
+        missingSkills:
+          type: array
+          items:
+            type: string
+        suggestions:
+          type: array
+          items:
+            type: string
+        summary:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - resumeId
+        - jobDescription
+        - matchScore
+        - matchedSkills
+        - missingSkills
+        - suggestions
+        - summary
+        - createdAt
