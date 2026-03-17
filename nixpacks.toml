@@ -1,0 +1,15 @@
+[phases.setup]
+# Ensure pnpm is available in Railway/Nixpacks builds
+cmds = ["corepack enable"]
+
+[phases.install]
+cmds = ["pnpm install --frozen-lockfile"]
+
+[phases.build]
+# Build ONLY the backend service for Railway
+cmds = ["pnpm --filter @workspace/api-server run build"]
+
+[start]
+# Run the production bundle built into artifacts/api-server/dist/index.cjs
+cmd = "pnpm --filter @workspace/api-server run start"
+
