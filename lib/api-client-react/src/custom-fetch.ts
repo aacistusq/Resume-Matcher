@@ -9,6 +9,38 @@ export type BodyType<T> = T;
 const NO_BODY_STATUS = new Set([204, 205, 304]);
 const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 
+function getViteApiBaseUrl(): string | undefined {
+  try {
+    // `import.meta.env` is injected by Vite at build time.
+    // We keep this in a try/catch so the client library can still be imported in
+    // non-Vite contexts (tests, tooling) without crashing.
+    const env = (import.meta as unknown as { env?: Record<string, unknown> })?.env;
+    const raw = env?.["VITE_API_BASE_URL"];
+    return typeof raw === "string" && raw.trim() !== "" ? raw.trim() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function joinBaseUrl(baseUrl: string, path: string): string {
+  const normalizedBase = baseUrl.replace(/\/+$/, "");
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${normalizedBase}${normalizedPath}`;
+}
+
+function resolveRequestInput(input: RequestInfo | URL): RequestInfo | URL {
+  // Only rewrite plain string paths like "/api/..." or "/...".
+  if (typeof input !== "string") return input;
+
+  const baseUrl = getViteApiBaseUrl();
+  if (!baseUrl) return input;
+
+  // We only rewrite root-relative paths; absolute URLs should be left as-is.
+  if (!input.startsWith("/")) return input;
+
+  return joinBaseUrl(baseUrl, input);
+}
+
 function isRequest(input: RequestInfo | URL): input is Request {
   return typeof Request !== "undefined" && input instanceof Request;
 }
@@ -277,13 +309,15 @@ export async function customFetch<T = unknown>(
 ): Promise<T> {
   const { responseType = "auto", headers: headersInit, ...init } = options;
 
+  const resolvedInput = resolveRequestInput(input);
+
   const method = resolveMethod(input, init.method);
 
   if (init.body != null && (method === "GET" || method === "HEAD")) {
     throw new TypeError(`customFetch: ${method} requests cannot have a body.`);
   }
 
-  const headers = mergeHeaders(isRequest(input) ? input.headers : undefined, headersInit);
+  const headers = mergeHeaders(isRequest(resolvedInput) ? resolvedInput.headers : undefined, headersInit);
 
   if (
     typeof init.body === "string" &&
@@ -297,9 +331,9 @@ export async function customFetch<T = unknown>(
     headers.set("accept", DEFAULT_JSON_ACCEPT);
   }
 
-  const requestInfo = { method, url: resolveUrl(input) };
+  const requestInfo = { method, url: resolveUrl(resolvedInput) };
 
-  const response = await fetch(input, { ...init, method, headers });
+  const response = await fetch(resolvedInput, { ...init, method, headers });
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);

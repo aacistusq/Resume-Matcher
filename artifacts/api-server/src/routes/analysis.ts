@@ -14,26 +14,35 @@ Your task is to compare a candidate's resume against a job description and retur
 Be conservative and skeptical.
 Do not reward general similarity unless there is direct evidence in the resume.
 Do not infer tools, technologies, or responsibilities unless explicitly mentioned or strongly evidenced.
-If a requirement is only somewhat reflected, classify it as partial, not matched.
-If there is no clear evidence, classify it as missing.
+
+Matching rules:
+- "matched" should only be used when the resume has direct, explicit, strong evidence for that requirement (clear mention of the skill, tool, domain, or responsibility with concrete context).
+- "partial" should be used when there is some transferable or incomplete evidence, but not a clear one-to-one match.
+- If there is no explicit evidence, mark the requirement as "missing" rather than inferring it.
+- Broad analytics or data experience does NOT automatically count as:
+  - specific domain expertise (e.g., healthcare, fintech, ads, gaming) unless clearly stated
+  - specific tools like Python, dbt, Snowflake, or experimentation frameworks
+  - stakeholder leadership, ownership, or product strategy
+- Vague wording or generic buzzwords should not be treated as strong evidence.
 
 Scoring intent:
-- Weak or loosely related resumes should often land in the 30–55 range after backend scoring
-- Partial but somewhat relevant resumes should often land in the 50–69 range
-- Strong resumes with clear evidence across most must-haves can land in the 70–84 range
-- Only exceptional, highly aligned resumes should land in the 85+ range
+- Weak or loosely related resumes should often land in the 30–55 range after backend scoring.
+- Partial but somewhat relevant resumes should often land in the 50–69 range.
+- Strong resumes with clear evidence across most must-haves can land in the 70–84 range.
+- Only exceptional, highly aligned resumes should land in the 85+ range.
 
 Important rules:
-1. For every matched or partial requirement, provide exact evidence from the resume
-2. If there is no direct evidence, do not mark as matched
-3. Broad business analytics experience does not automatically equal domain expertise
-4. Broad data experience does not automatically mean Python, dbt, Snowflake, experimentation, or stakeholder leadership
-5. Missing critical requirements should be clearly reflected in the analysis
-6. Be strict about seniority mismatch
-7. Be strict about lack of quantified achievements
-8. Be strict about vague or generic resume bullets
-9. Do not produce a final score — the backend will calculate it
-10. Return valid JSON only in the required schema`;
+1. For every matched or partial requirement, provide exact evidence from the resume (quote phrases or summarize very specific bullets).
+2. If there is no direct evidence, do not mark as matched.
+3. Broad business or data experience does not automatically equal domain expertise or specific tools.
+4. Only set "missing_core_domain" when the role strongly depends on domain experience and the resume clearly lacks it.
+5. Missing critical requirements should be clearly reflected in the analysis.
+6. Be strict about seniority mismatch.
+7. Be strict about lack of quantified achievements.
+8. Be strict about vague or generic resume bullets.
+9. Be skeptical and avoid inflating numeric subscores.
+10. Do not produce a final score — the backend will calculate it.
+11. Return valid JSON only in the required schema.`;
 
 function buildPrompt(resumeContent: string, jobDescription: string): string {
   return `Compare the following resume against the job description. Return structured JSON only — no commentary, no markdown.
@@ -127,10 +136,22 @@ Return this exact JSON structure (all fields required):
   }
 }
 
-Scoring rules for subscores:
+Scoring rules for subscores (be strict and skeptical, avoid inflating these numbers):
 - experience_relevance_score: 0–20. How directly relevant is the candidate's experience to this specific role?
-- evidence_strength_score: 0–15. How strong is the evidence? Consider: quantified achievements, specificity, ownership language, proven tools, business outcomes.
-- resume_quality_score: 0–10. How clear, well-structured and ATS-friendly is the resume? Consider: clarity, formatting, bullet quality, lack of fluff.
+  - 0–5 = weakly related or mostly unrelated background.
+  - 6–10 = some transferable relevance but meaningful gaps in responsibilities, tools, or domain.
+  - 11–15 = fairly relevant but not strong across all core areas (some must-haves or responsibilities are only partial).
+  - 16–20 = strongly aligned role, responsibilities, and seniority with clear evidence across core requirements.
+- evidence_strength_score: 0–15. How strong is the evidence in the resume?
+  - 0–4 = vague claims, little proof, few specifics, mostly generic language.
+  - 5–8 = some decent evidence but still generic or incomplete, limited quantified outcomes.
+  - 9–12 = strong specific evidence with measurable outcomes, clear ownership and impact.
+  - 13–15 = exceptional evidence quality with repeated strong proof and outcomes.
+- resume_quality_score: 0–10. How clear, well-structured and ATS-friendly is the resume?
+  - 0–3 = weak structure, hard to scan, vague bullets, or very cluttered.
+  - 4–6 = decent but average clarity and structure; some bullets are still generic.
+  - 7–8 = strong and clear ATS-friendly structure with mostly specific, readable bullets.
+  - 9–10 = excellent clarity, communication, and structure; very easy to scan and understand.
 
 For must_have items, set critical: true for hard requirements (certifications, specific technologies, minimum experience levels).
 Use weight 3 for the most critical must-have items, 2 for normal must-haves.
@@ -188,19 +209,23 @@ function buildWhyNotHigher(
   const flags = aiOutput.penalty_flags;
 
   if (breakdown.missingCriticalCount > 0) {
-    reasons.push(`${breakdown.missingCriticalCount} critical requirement${breakdown.missingCriticalCount > 1 ? "s" : ""} missing`);
+    reasons.push(
+      `Missing ${breakdown.missingCriticalCount} critical requirement${
+        breakdown.missingCriticalCount > 1 ? "s" : ""
+      }`
+    );
   }
   if (flags.major_seniority_mismatch) {
-    reasons.push("Significant seniority mismatch with the role level");
+    reasons.push("Seniority mismatch with the role level");
   }
   if (flags.missing_core_domain) {
-    reasons.push("Core domain expertise required by the role is not demonstrated");
+    reasons.push("Domain mismatch or missing core domain expertise");
   }
   if (flags.no_quantified_achievements) {
-    reasons.push("Resume lacks quantified achievements and metrics");
+    reasons.push("No quantified achievements or clear business impact");
   }
   if (flags.generic_resume_language) {
-    reasons.push("Resume uses generic or vague language that doesn't stand out");
+    reasons.push("Resume bullets are too generic or vague");
   }
   if (flags.largely_unrelated_background) {
     reasons.push("Candidate's background is largely unrelated to this role");
@@ -209,11 +234,22 @@ function buildWhyNotHigher(
     reasons.push(`Score capped at ${breakdown.scoreCapApplied} due to critical gaps`);
   }
 
-  const missingMustHaves = (aiOutput.requirement_analysis.must_have ?? [])
-    .filter((i) => i.status === "missing" && i.critical)
+  const missingMustHaves = (aiOutput.requirement_analysis.must_have ?? []).filter(
+    (i) => i.status === "missing" && i.critical
+  );
+
+  const missingMustHaveReasons = missingMustHaves
     .map((i) => `No evidence of: ${i.requirement}`)
     .slice(0, 3);
-  reasons.push(...missingMustHaves);
+  reasons.push(...missingMustHaveReasons);
+
+  // Add more structured reasons derived from missing requirements and signals
+  const missingPython = missingMustHaves.some((i) =>
+    i.requirement.toLowerCase().includes("python")
+  );
+  if (missingPython) {
+    reasons.push("No explicit evidence of Python experience");
+  }
 
   return reasons.slice(0, 6);
 }

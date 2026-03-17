@@ -55,9 +55,31 @@ export interface ScoreBreakdown {
   scoreBand: string;
 }
 
+// --- SCORING CONSTANTS (tune here) ---
+
+const STATUS_PARTIAL_VALUE = 0.35;
+
+const PENALTIES = {
+  missingCriticalPerItem: 10, // each missing critical must-have: -10
+  majorSeniorityMismatch: 10, // seniority mismatch: -10
+  missingCoreDomain: 10, // core domain missing: -10
+  noQuantifiedAchievements: 6, // no metrics: -6
+  genericResumeLanguage: 6, // vague bullets: -6
+  largelyUnrelatedBackground: 15, // unrelated: -15
+} as const;
+
+const SCORE_CAPS = {
+  missingCriticalTwoOrMore: 60, // 2+ critical must-haves missing
+  missingCriticalThreeOrMore: 50, // 3+ critical must-haves missing
+  majorSeniorityMismatch: 55,
+  largelyUnrelatedBackground: 40,
+  missingCoreDomainStrongRole: 55,
+  highScoreGuardCap: 79,
+} as const;
+
 function statusValue(status: string): number {
   if (status === "matched") return 1.0;
-  if (status === "partial") return 0.5;
+  if (status === "partial") return STATUS_PARTIAL_VALUE;
   return 0;
 }
 
@@ -113,37 +135,91 @@ export function calculateScore(aiOutput: AIAnalysisOutput): ScoreBreakdown {
   // --- PENALTIES (tune here) ---
   let penalty = 0;
   let missingCriticalCount = 0;
+  let totalCriticalCount = 0;
+  let matchedCriticalCount = 0;
 
   for (const item of mustHaves) {
-    if (item.critical && item.status === "missing") missingCriticalCount++;
+    if (item.critical) {
+      totalCriticalCount++;
+      if (item.status === "missing") {
+        missingCriticalCount++;
+      }
+      if (item.status === "matched") {
+        matchedCriticalCount++;
+      }
+    }
   }
 
-  penalty += missingCriticalCount * 8;          // each missing critical must-have: -8
-  if (flags.major_seniority_mismatch) penalty += 10;  // seniority mismatch: -10
-  if (flags.missing_core_domain) penalty += 8;         // core domain missing: -8
-  if (flags.no_quantified_achievements) penalty += 5;  // no metrics: -5
-  if (flags.generic_resume_language) penalty += 5;     // vague bullets: -5
-  if (flags.largely_unrelated_background) penalty += 12; // unrelated: -12
+  penalty += missingCriticalCount * PENALTIES.missingCriticalPerItem;
+  if (flags.major_seniority_mismatch) penalty += PENALTIES.majorSeniorityMismatch;
+  if (flags.missing_core_domain) penalty += PENALTIES.missingCoreDomain;
+  if (flags.no_quantified_achievements) penalty += PENALTIES.noQuantifiedAchievements;
+  if (flags.generic_resume_language) penalty += PENALTIES.genericResumeLanguage;
+  if (flags.largely_unrelated_background) penalty += PENALTIES.largelyUnrelatedBackground;
 
   let scoreAfterPenalties = Math.max(0, rawScore - penalty);
 
   // --- SCORE CAPS (tune here) ---
   let scoreCapApplied: number | null = null;
 
-  // Cap at 65 if 2+ critical must-haves missing
-  if (missingCriticalCount >= 2 && scoreAfterPenalties > 65) {
-    scoreAfterPenalties = 65;
-    scoreCapApplied = 65;
+  // Cap at 60 if 2+ critical must-haves missing
+  if (missingCriticalCount >= 2 && scoreAfterPenalties > SCORE_CAPS.missingCriticalTwoOrMore) {
+    scoreAfterPenalties = SCORE_CAPS.missingCriticalTwoOrMore;
+    scoreCapApplied =
+      scoreCapApplied !== null
+        ? Math.min(scoreCapApplied, SCORE_CAPS.missingCriticalTwoOrMore)
+        : SCORE_CAPS.missingCriticalTwoOrMore;
+  }
+  // Cap at 50 if 3+ critical must-haves missing
+  if (missingCriticalCount >= 3 && scoreAfterPenalties > SCORE_CAPS.missingCriticalThreeOrMore) {
+    scoreAfterPenalties = SCORE_CAPS.missingCriticalThreeOrMore;
+    scoreCapApplied =
+      scoreCapApplied !== null
+        ? Math.min(scoreCapApplied, SCORE_CAPS.missingCriticalThreeOrMore)
+        : SCORE_CAPS.missingCriticalThreeOrMore;
   }
   // Cap at 55 for major seniority mismatch
-  if (flags.major_seniority_mismatch && scoreAfterPenalties > 55) {
-    scoreAfterPenalties = 55;
-    scoreCapApplied = scoreCapApplied !== null ? Math.min(scoreCapApplied, 55) : 55;
+  if (flags.major_seniority_mismatch && scoreAfterPenalties > SCORE_CAPS.majorSeniorityMismatch) {
+    scoreAfterPenalties = SCORE_CAPS.majorSeniorityMismatch;
+    scoreCapApplied =
+      scoreCapApplied !== null
+        ? Math.min(scoreCapApplied, SCORE_CAPS.majorSeniorityMismatch)
+        : SCORE_CAPS.majorSeniorityMismatch;
   }
-  // Cap at 45 for largely unrelated background
-  if (flags.largely_unrelated_background && scoreAfterPenalties > 45) {
-    scoreAfterPenalties = 45;
-    scoreCapApplied = scoreCapApplied !== null ? Math.min(scoreCapApplied, 45) : 45;
+  // Cap at 40 for largely unrelated background
+  if (flags.largely_unrelated_background && scoreAfterPenalties > SCORE_CAPS.largelyUnrelatedBackground) {
+    scoreAfterPenalties = SCORE_CAPS.largelyUnrelatedBackground;
+    scoreCapApplied =
+      scoreCapApplied !== null
+        ? Math.min(scoreCapApplied, SCORE_CAPS.largelyUnrelatedBackground)
+        : SCORE_CAPS.largelyUnrelatedBackground;
+  }
+  // Cap at 55 when missing core domain and the role strongly depends on domain experience
+  if (flags.missing_core_domain && scoreAfterPenalties > SCORE_CAPS.missingCoreDomainStrongRole) {
+    scoreAfterPenalties = SCORE_CAPS.missingCoreDomainStrongRole;
+    scoreCapApplied =
+      scoreCapApplied !== null
+        ? Math.min(scoreCapApplied, SCORE_CAPS.missingCoreDomainStrongRole)
+        : SCORE_CAPS.missingCoreDomainStrongRole;
+  }
+
+  // Guard: prevent >80 scores unless the profile is truly strong
+  const hasCriticalRequirements = totalCriticalCount > 0;
+  const criticalMatchRatio = hasCriticalRequirements ? matchedCriticalCount / totalCriticalCount : 0;
+  const canExceedEighty =
+    (!hasCriticalRequirements || criticalMatchRatio >= 0.8) &&
+    missingCriticalCount === 0 &&
+    !flags.major_seniority_mismatch &&
+    !flags.largely_unrelated_background &&
+    evidenceScore >= 10 &&
+    experienceScore >= 14;
+
+  if (scoreAfterPenalties > 80 && !canExceedEighty) {
+    scoreAfterPenalties = SCORE_CAPS.highScoreGuardCap;
+    scoreCapApplied =
+      scoreCapApplied !== null
+        ? Math.min(scoreCapApplied, SCORE_CAPS.highScoreGuardCap)
+        : SCORE_CAPS.highScoreGuardCap;
   }
 
   const finalScore = Math.round(scoreAfterPenalties);
